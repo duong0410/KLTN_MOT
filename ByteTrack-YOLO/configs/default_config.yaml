@@ -1,0 +1,34 @@
+# ByteTrack-YOLO Configuration
+
+# Detection parameters
+detection:
+  model_path: "models/yolo11s_traffic.pt"  # Path to YOLO model
+  conf_threshold: 0.01  # YOLO confidence threshold
+  device: "cuda"  # cuda or cpu
+  min_box_area: 400  # Minimum bounding box area in pixels (filter small/distant boxes)
+  edge_margin: 10  # Margin from frame edge in pixels (filter objects leaving scene)
+
+# ByteTrack tracker parameters
+tracker:
+  det_conf_high: 0.5  # High confidence threshold
+  det_conf_low: 0.1  # Low confidence threshold
+  new_track_thresh: 0.6  # Threshold for creating new tracks
+  match_thresh_high: 0.8  # Cost threshold for first association (IoU > 0.2)
+  match_thresh_low: 0.5  # Cost threshold for second association (IoU > 0.5)
+  track_buffer: 30  # Number of frames to keep lost tracks
+  min_hits: 1  # Minimum hits before track is confirmed
+
+# Video processing
+video:
+  output_dir: "outputs"  # Output directory for processed videos
+  save_output: true  # Whether to save output video
+  display: true  # Whether to display video during processing
+  fps_limit: null  # Limit FPS (null for no limit)
+
+# Visualization
+visualization:
+  draw_tracks: true  # Draw bounding boxes
+  draw_ids: true  # Draw track IDs
+  draw_classes: true  # Draw class labels
+  draw_info_panel: true  # Draw information panel
+  color_seed: 42  # Random seed for track colors
