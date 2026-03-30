@@ -108,8 +108,6 @@ PyYAML>=6.0
 
 ## 🚀 Sử dụng
 
-### 1. GUI Tracking Application
-
 ```bash
 python ByteTrack-YOLO/main.py
 ```
@@ -120,18 +118,6 @@ python ByteTrack-YOLO/main.py
 - Điều chỉnh tracking parameters
 - Xem kết quả real-time
 - Export tracking results
-
-### 2. Test YOLO Detection
-
-```bash
-python test_yolo11s.py
-```
-
-### 3. Training YOLO (Jupyter Notebook)
-
-```bash
-jupyter notebook Train_Yolo.ipynb
-```
 
 ## 📁 Cấu trúc dự án
 
