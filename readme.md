@@ -171,20 +171,22 @@ KLTN/
 
 ### ByteTrack MOT17 Tracking Results
 
-Official ByteTrack checkpoints from the authors' repository:
+Custom evaluation results on MOT17 dataset (from benmark_result archives):
 
 | Model | MOTA ↑ | IDF1 ↑ | MOTP ↓ | Precision ↑ | Recall ↑ | ID Sw ↓ | FP ↓ | FN ↓ |
-|-------|--------|--------|--------|-------------|----------|---------|-------|-------|
-| bytetrack_s_mot17 | 83.0% | 81.1% | 0.649 | 89.0% | 96.5% | 802 | 13657 | 2261 |
-| bytetrack_m_mot17 | 81.5% | 83.2% | 0.592 | 86.5% | 98.4% | 619 | 15068 | 1177 |
-| bytetrack_l_mot17 | 82.0% | 84.0% | 0.523 | 86.6% | 99.0% | 576 | 14670 | 760 |
-| bytetrack_x_mot17 | 83.8% | 83.9% | 0.529 | 88.1% | 98.9% | 561 | 13108 | 807 |
+|-------|--------|--------|--------|-------------|----------|---------|--------|--------|
+| bytetrack_s_mot17 | 81.0% | 81.9% | 0.662 | 95.9% | 85.3% | 379 | 3431 | 12449 |
+| bytetrack_m_mot17 | 84.2% | 85.2% | 0.633 | 92.7% | 92.5% | 361 | 9829 | 5834 |
+| bytetrack_l_mot17 | 84.6% | 85.7% | 0.616 | 91.2% | 94.7% | 410 | 11418 | 4008 |
+| bytetrack_x_mot17 | 86.5% | 86.2% | 0.577 | 93.4% | 94.0% | 355 | 6844 | 4649 |
+
+**Best Model**: bytetrack_x_mot17 achieves highest MOTA (86.5%) with best MOTP (0.577)
 
 ### Traffic Tracking (YOLO11s + ByteTrack)
 
 - **Classes**: Car, Truck, Bus, Motorbike, Bicycle, Person
 - **Performance**: ~25-30 FPS on RTX 3060
-- **Recommended Model**: bytetrack_x_mot17 (best accuracy with 83.8% MOTA)
+- **Recommended Model**: bytetrack_x_mot17 (best overall performance)
 
 ## 🛠️ Công nghệ
 
