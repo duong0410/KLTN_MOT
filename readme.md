@@ -16,8 +16,7 @@ Hệ thống theo dõi đa đối tượng (Multi-Object Tracking) sử dụng Y
 
 Dự án này triển khai hệ thống tracking đa đối tượng cho hai bài toán chính:
 
-1. **Traffic Tracking**: Theo dõi các phương tiện giao thông (xe ô tô, xe tải, xe buýt, xe máy, xe đạp, người)
-2. **Pedestrian Tracking**: Theo dõi người đi bộ trên MOT17 dataset
+1. **Traffic Tracking**: Theo dõi các phương tiện giao thông
 
 ### Trackers được triển khai:
 
@@ -37,12 +36,6 @@ Dự án này triển khai hệ thống tracking đa đối tượng cho hai bà
 
 - **Real-time tracking** với ByteTrack
 - Metrics: MOTA, IDF1, MOTP, Precision, Recall, ID Switches, Fragmentations
-
-TARGET\_TRAIN = 2500
-
-TARGET\_VAL = 500
-
-
 
 
 ### 🎯 Detection Models
