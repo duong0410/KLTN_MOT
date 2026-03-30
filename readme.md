@@ -22,8 +22,6 @@ Dự án này triển khai hệ thống tracking đa đối tượng cho hai bà
 ### Trackers được triển khai:
 
 - ✅ **ByteTrack** (custom implementation)
-- ✅ **BotSort** (via BoxMOT library)
-- ✅ **ByteTrack** (via BoxMOT library)
 
 ## ✨ Tính năng
 
@@ -35,12 +33,10 @@ Dự án này triển khai hệ thống tracking đa đối tượng cho hai bà
 - Track filtering và statistics
 - Export tracking results
 
-### 📊 Benchmark Tools
+### 📊 Video Tracking
 
-- **MOT17 benchmark** với các trackers khác nhau
-- **YOLOX-X pre-generated detections** comparison
+- **Real-time tracking** với ByteTrack
 - Metrics: MOTA, IDF1, MOTP, Precision, Recall, ID Switches, Fragmentations
-- Detailed evaluation reports\#   - Pipeline sẽ cố gắng chọn đúng số lượng này.
 
 TARGET\_TRAIN = 2500
 
@@ -52,8 +48,6 @@ TARGET\_VAL = 500
 ### 🎯 Detection Models
 
 - **YOLO11s** (Ultralytics YOLO11)
-- **YOLO11n** (lightweight version)
-- **YOLO11m** (medium version)
 - Custom trained on traffic datasets
 
 ## 🔧 Cài đặt
@@ -117,7 +111,7 @@ PyYAML>=6.0
 ### 1. GUI Tracking Application
 
 ```bash
-python bytetrack_test.py
+python ByteTrack-YOLO/main.py
 ```
 
 **Features:**
@@ -127,28 +121,13 @@ python bytetrack_test.py
 - Xem kết quả real-time
 - Export tracking results
 
-### 2. MOT17 Benchmark với BoxMOT
-
-```bash
-cd benmark_result
-
-# Chạy với MOT17 default detections
-python benmark_boxmot_bytetrack.py
-
-# Hoặc chạy với YOLOX-X pre-generated detections
-# (Sửa USE_YOLOX_PREGENERATED = True trong file)
-python benmark_boxmot_bytetrack.py
-```
-
-**Kết quả:** Lưu trong `benmark_result/results_boxmot_bytetrack/`
-
-### 3. Test YOLO Detection
+### 2. Test YOLO Detection
 
 ```bash
 python test_yolo11s.py
 ```
 
-### 4. Training YOLO (Jupyter Notebook)
+### 3. Training YOLO (Jupyter Notebook)
 
 ```bash
 jupyter notebook Train_Yolo.ipynb
@@ -159,18 +138,9 @@ jupyter notebook Train_Yolo.ipynb
 ```
 KLTN/
 ├── 📄 bytetrack_test.py           # GUI tracking application
-├── 📄 botsort_test.py            # BotSort tracker test
 ├── 📄 yolo11_bytetrack.py        # YOLO + ByteTrack integration
 ├── 📄 test_yolo11s.py            # YOLO detection testing
 ├── 📄 Train_Yolo.ipynb           # Training notebook
-│
-├── 📂 benmark_result/            # Benchmark scripts & results
-│   ├── benmark_boxmot_bytetrack.py   # ByteTrack benchmark
-│   ├── benmark_boxmot_botsort.py     # BotSort benchmark
-│   ├── benmark_yolox_bytetrack.py    # YOLOX-X benchmark
-│   ├── results_botsort/              # BotSort results
-│   ├── results_boxmot_bytetrack/     # ByteTrack results
-│   └── runs/                         # Pre-generated detections
 │
 ├── 📂 ByteTrack-YOLO/            # ByteTrack custom implementation
 │   ├── main.py
@@ -199,19 +169,22 @@ KLTN/
 
 ## 📊 Kết quả
 
-### MOT17 Benchmark (BoxMOT ByteTrack)
+### ByteTrack MOT17 Tracking Results
 
-| Detector | MOTA ↑ | IDF1 ↑ | Precision ↑ | Recall ↑ | ID Sw ↓ | FP ↓ | FN ↓ |
-|----------|--------|--------|-------------|----------|---------|------|------|
-| DPM      | 41.2%  | 48.5%  | 87.3%       | 49.8%    | 245     | 1234 | 8765 |
-| FRCNN    | 52.7%  | 58.3%  | 92.1%       | 58.4%    | 189     | 856  | 7234 |
-| SDP      | 48.9%  | 54.2%  | 89.7%       | 56.2%    | 212     | 1045 | 7891 |
+Official ByteTrack checkpoints from the authors' repository:
 
-### Traffic Tracking (Custom YOLO11s)
+| Model | MOTA ↑ | IDF1 ↑ | MOTP ↓ | Precision ↑ | Recall ↑ | ID Sw ↓ | FP ↓ | FN ↓ |
+|-------|--------|--------|--------|-------------|----------|---------|-------|-------|
+| bytetrack_s_mot17 | 83.0% | 81.1% | 0.649 | 89.0% | 96.5% | 802 | 13657 | 2261 |
+| bytetrack_m_mot17 | 81.5% | 83.2% | 0.592 | 86.5% | 98.4% | 619 | 15068 | 1177 |
+| bytetrack_l_mot17 | 82.0% | 84.0% | 0.523 | 86.6% | 99.0% | 576 | 14670 | 760 |
+| bytetrack_x_mot17 | 83.8% | 83.9% | 0.529 | 88.1% | 98.9% | 561 | 13108 | 807 |
+
+### Traffic Tracking (YOLO11s + ByteTrack)
 
 - **Classes**: Car, Truck, Bus, Motorbike, Bicycle, Person
-- **FPS**: ~25-30 FPS (RTX 3060)
-- **MOTA**: ~65-70% (on custom test set)
+- **Performance**: ~25-30 FPS on RTX 3060
+- **Recommended Model**: bytetrack_x_mot17 (best accuracy with 83.8% MOTA)
 
 ## 🛠️ Công nghệ
 
@@ -221,7 +194,6 @@ KLTN/
 
 ### Tracking Algorithms
 - **ByteTrack**: 2-phase matching strategy
-- **BotSort**: Hybrid tracking with Re-ID
 - **Kalman Filter**: Motion prediction
 
 ### Evaluation Metrics
@@ -279,9 +251,7 @@ MIT License - see LICENSE file for details
 ## 🙏 Acknowledgments
 
 - **ByteTrack**: [arXiv:2110.06864](https://arxiv.org/abs/2110.06864)
-- **BotSort**: [arXiv:2206.14651](https://arxiv.org/abs/2206.14651)
 - **YOLO**: [Ultralytics](https://github.com/ultralytics/ultralytics)
-- **BoxMOT**: [GitHub](https://github.com/mikel-brostrom/yolo_tracking)
 - **MOT Challenge**: [motchallenge.net](https://motchallenge.net/)
 
 ## 📧 Contact
