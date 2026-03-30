@@ -1,14 +1,30 @@
-# ByteTrack-YOLO: Multi-Object Tracking System
+# ByteTrack-YOLO: Multi-Object Tracking with Violation Detection
 
-A professional vehicle tracking system combining ByteTrack algorithm with YOLO11s detector. Features class-persistent tracking to prevent ID/class switching during occlusion.
+A professional vehicle tracking system combining ByteTrack algorithm with YOLO11s detector. Features class-persistent tracking, real-time violation detection, and multi-lane support.
+
+## 🚀 Quick Start
+
+```bash
+# GUI Mode (Interactive)
+python track_and_detect.py --mode gui
+
+# CLI Mode (Batch Processing)
+python track_and_detect.py --mode cli --video input.mp4 --output output.mp4
+```
+
+See [HOW_TO_RUN.md](HOW_TO_RUN.md) for detailed usage guide.
 
 ## 🌟 Features
 
 - **ByteTrack Algorithm**: Two-phase association for robust tracking
 - **Class Persistence**: Once assigned, object class never changes
-- **YOLO11s Integration**: Fast and accurate vehicle detection
+- **YOLO Detection**: Fast and accurate vehicle detection
+- **Violation Detection**: Traffic rule violations (wrong lane, direction, vehicle type)
+- **ROI Filtering**: Process only regions of interest
+- **Lane Management**: Define multiple traffic lanes with rules
 - **GUI Application**: User-friendly interface for video processing
-- **Configurable**: YAML-based configuration system
+- **CLI Mode**: Batch processing support
+- **Real-time Visualization**: Track info, violations, FPS display
 - **Modular Design**: Clean, maintainable code structure
 
 ## 📁 Project Structure

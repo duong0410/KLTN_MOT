@@ -1,6 +1,6 @@
 """
 ByteTrack: Multi-Object Tracking Algorithm
-Implementation of ByteTrack with class-persistent tracking
+Implementation of ByteTrack with class-persistent tracking and violation detection
 """
 
 import numpy as np
@@ -11,6 +11,7 @@ from ..utils.matching import (
     iou_distance, linear_assignment, joint_stracks, 
     sub_stracks, remove_duplicate_stracks
 )
+from .violation_detection import ViolationType
 
 
 class TrackState:
@@ -51,6 +52,10 @@ class STrack:
         self.track_id = 0
         self.frame_id = 0
         self.start_frame = 0
+        
+        # Traffic lane and violation tracking
+        self.lane_id = None
+        self.violation_type = ViolationType.NONE
         
         self.state = TrackState.New
         
