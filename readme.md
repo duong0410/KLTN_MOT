@@ -14,10 +14,9 @@ Hệ thống theo dõi đa đối tượng (Multi-Object Tracking) sử dụng Y
 
 ## 🎯 Tổng quan
 
-Dự án này triển khai hệ thống tracking đa đối tượng cho hai bài toán chính:
+Dự án này triển khai hệ thống tracking đa đối tượng sử dụng YOLO11 detector và ByteTrack tracker:
 
-1. **Traffic Tracking**: Theo dõi các phương tiện giao thông (xe ô tô, xe tải, xe buýt, xe máy, xe đạp, người)
-2. **Pedestrian Tracking**: Theo dõi người đi bộ trên MOT17 dataset
+- **MOT17 Dataset**: Đánh giá trên MOT17 benchmark với 4 checkpoint sizes (s, m, l, x)
 
 ### Trackers được triển khai:
 
@@ -37,10 +36,6 @@ Dự án này triển khai hệ thống tracking đa đối tượng cho hai bà
 
 - **Real-time tracking** với ByteTrack
 - Metrics: MOTA, IDF1, MOTP, Precision, Recall, ID Switches, Fragmentations
-
-TARGET\_TRAIN = 2500
-
-TARGET\_VAL = 500
 
 
 
@@ -137,33 +132,34 @@ jupyter notebook Train_Yolo.ipynb
 
 ```
 KLTN/
-├── 📄 bytetrack_test.py           # GUI tracking application
-├── 📄 yolo11_bytetrack.py        # YOLO + ByteTrack integration
-├── 📄 test_yolo11s.py            # YOLO detection testing
-├── 📄 Train_Yolo.ipynb           # Training notebook
-│
-├── 📂 ByteTrack-YOLO/            # ByteTrack custom implementation
-│   ├── main.py
-│   ├── model.py
-│   ├── run_gui.py
+├── � ByteTrack-YOLO/              # Main tracking application
+│   ├── main.py                     # Entry point - GUI launcher
+│   ├── app_gui.py                  # Tkinter GUI implementation
+│   ├── model.py                    # YOLO model wrapper
+│   ├── requirements.txt            # Dependencies
+│   ├── configs/                    # Configuration files
+│   ├── models/                     # Model checkpoints location
+│   ├── outputs/                    # Detection outputs
 │   └── src/
+│       ├── detector/               # YOLO detector module
+│       ├── tracker/                # ByteTrack tracker module
+│       │   ├── bytetrack.py
+│       │   ├── violation_detection.py
+│       │   └── kalman_filter.py
+│       └── utils/                  # Utility functions
+│           ├── roi_utils.py
+│           └── matching.py
 │
-├── 📂 Detector_train/            # Dataset preparation scripts
-│   ├── check_dataset_paths.py
-│   └── load-data-coco-ua-detrac.ipynb
+├── 📂 benmark_result/              # Benchmark results
+│   ├── benmark_bytetrack_Yolo.py  # Benchmark evaluation script
+│   ├── results_archive_s_new/     # Small model results
+│   ├── results_archive_m_new/     # Medium model results
+│   ├── results_archive_l_new/     # Large model results
+│   └── results_archive_x_new/     # Extra-large model results
 │
-├── 📂 Dataset/                   # ⚠️ NOT INCLUDED IN GIT
-│   ├── MOT17/                    # MOT17 dataset
-│   ├── traffic_yolo/             # Traffic dataset v1
-│   ├── traffic_yolo_v2/          # Traffic dataset v2
-│   ├── traffic_yolo_v3/          # Traffic dataset v3
-│   ├── COCO2017/                 # COCO dataset
-│   └── UA-DETRAC/                # UA-DETRAC dataset
-│
-├── 📄 .gitignore                 # Git ignore rules
-├── 📄 README.md                  # This file
-├── 📄 requirements.txt           # Python dependencies
-└── 📄 readme.txt                 # Vietnamese notes
+├── 📄 .gitignore                   # Git ignore rules
+├── 📄 README.md                    # This file
+└── 📄 readme.md                    # Vietnamese documentation
 
 ```
 
@@ -206,45 +202,29 @@ Custom evaluation results on MOT17 dataset (from benmark_result archives):
   - Precision, Recall
   - ID Switches, Fragmentations
 
-## 📝 Dataset Setup (Không bao gồm trong repo)
+## 📝 Dataset (Không bao gồm trong repo)
 
 ### MOT17 Dataset
 
+MOT17 dataset được sử dụng cho đánh giá performance của ByteTrack tracker.
+
+**Download**: [MOT Challenge Website](https://motchallenge.net/data/MOT17/)
+
+**Dataset Structure**:
 ```
 Dataset/MOT17/
 ├── train/
-│   ├── MOT17-02-DPM/
-│   ├── MOT17-02-FRCNN/
-│   ├── MOT17-02-SDP/
-│   └── ...
+│   ├── MOT17-02/
+│   ├── MOT17-04/
+│   ├── MOT17-05/
+│   ├── MOT17-09/
+│   ├── MOT17-10/
+│   ├── MOT17-11/
+│   └── MOT17-13/
 └── test/
-    └── ...
+    └── [test sequences]
 ```
 
-**Download**: [MOT Challenge](https://motchallenge.net/data/MOT17/)
-
-### Traffic Dataset
-
-```
-Dataset/traffic_yolo_v3/
-├── train/
-│   ├── images/
-│   └── labels/
-├── val/
-│   ├── images/
-│   └── labels/
-└── data.yaml
-```
-
-**Custom dataset** - Contact author for access
-
-## 👨‍💻 Tác giả
-
-- **Sinh viên**: [Your Name]
-- **MSSV**: [Your Student ID]
-- **Trường**: [Your University]
-- **Khoa**: Công nghệ thông tin
-- **Đề tài**: Multi-Object Tracking cho hệ thống giám sát giao thông
 
 ## 📄 License
 
@@ -258,8 +238,8 @@ MIT License - see LICENSE file for details
 
 ## 📧 Contact
 
-- Email: your.email@example.com
-- GitHub: [@yourusername](https://github.com/yourusername)
+- Email: tranthaidaiduong0@gmail.com
+- GitHub: [@yourusername](https://github.com/duong0410)
 
 ---
 
