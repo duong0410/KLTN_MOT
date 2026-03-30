@@ -40,7 +40,7 @@ Dự án này triển khai hệ thống tracking đa đối tượng cho hai bà
 
 ### 🎯 Detection Models
 
-- **YOLO11s** (Ultralytics YOLO11)
+- **YOLO11** (Ultralytics YOLO11)
 - Custom trained on traffic datasets
 
 ## 🔧 Cài đặt
@@ -158,8 +158,6 @@ Evaluation results on MOT17 dataset train using detection checkpoint from origin
 | bytetrack_m_mot17 | 84.2% | 85.2% | 0.633 | 92.7% | 92.5% | 361 | 9829 | 5834 |
 | bytetrack_l_mot17 | 84.6% | 85.7% | 0.616 | 91.2% | 94.7% | 410 | 11418 | 4008 |
 | bytetrack_x_mot17 | 86.5% | 86.2% | 0.577 | 93.4% | 94.0% | 355 | 6844 | 4649 |
-
-**Best Model**: bytetrack_x_mot17 achieves highest MOTA (86.5%) with best MOTP (0.577)
 
 
 ## 🛠️ Công nghệ
