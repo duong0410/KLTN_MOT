@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """
 ByteTrack GUI - Vehicle Tracking with YOLO11 and Traffic Violation Detection
-GUI matching bytetrack_test.py interface but using modular src packages
+GUI Interface matching bytetrack_test.py but using modular src/ packages
 
 Usage:
     python app_gui.py
+
+Features:
+    - YOLO11 object detection
+    - ByteTrack multi-object tracking
+    - Traffic violation detection
+    - Real-time video visualization
+    - Interactive lane configuration (ROI drawing)
+    - Video saving support
 """
 
 import sys
@@ -23,18 +31,26 @@ import numpy as np
 try:
     from PIL import Image, ImageTk
 except ImportError:
-    messagebox.showerror("Error", "PIL not installed. Run: pip install pillow")
+    print("Error: PIL not installed. Run: pip install pillow")
     sys.exit(1)
 
-# Add src to path
+# Add src to path for modular imports
 sys.path.insert(0, str(Path(__file__).parent))
 
 from src.detector import YOLODetector
-from src.tracker import BYTETracker, STrack, TrackState, ViolationDetector, TrafficLane, ViolationType, TrackViolation
+from src.tracker import (
+    BYTETracker,
+    STrack,
+    TrackState,
+    ViolationDetector,
+    TrafficLane,
+    ViolationType,
+    NoParkingZone,
+)
 
 
 # ============================================================================
-# ROI Selector - Interactive polygon drawing
+# ROI Selector - Interactive polygon drawing for lane definition
 # ============================================================================
 
 class ROISelector:
@@ -42,99 +58,136 @@ class ROISelector:
     
     def __init__(self, frame, canvas, callback):
         """
+        Initialize ROI selector to draw exactly 4 points
+        
         Args:
-            frame: Original video frame (BGR)
+            frame: Video frame to draw on
             canvas: tkinter Canvas to draw on
-            callback: Function to call when 4 points are drawn
+            callback: Callback function when 4 points finished - receives polygon points
         """
-        self.frame = frame
+        self.frame = frame.copy()
+        self.frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         self.canvas = canvas
         self.callback = callback
         self.points = []
+        self.scale = 1.0
+        self.offset_x = 0
+        self.offset_y = 0
+        self.photo = None
+        self.is_active = True
+        self.canvas_id = None
         
-        # Bind events
-        self.canvas.bind("<Button-1>", self._on_canvas_click)
-        canvas.focus_set()
+        # Bind canvas click
+        self.canvas_id = self.canvas.bind("<Button-1>", self._on_canvas_click)
         
+        # Initial draw
         self._update_display()
+        
+        print("\n" + "="*60)
+        print("Draw Lane ROI (4 POINTS):")
+        print("  - Click 4 points on canvas to define ROI area")
+        print("  - Points: 0/4")
+        print("="*60 + "\n")
     
     def _on_canvas_click(self, event):
         """Handle canvas click"""
-        # Map canvas coordinates back to frame coordinates
-        canvas_w = self.canvas.winfo_width()
-        canvas_h = self.canvas.winfo_height()
-        frame_h, frame_w = self.frame.shape[:2]
-        
-        scale = min(canvas_w / frame_w, canvas_h / frame_h)
-        
-        # Calculate offset (frame is centered on canvas)
-        offset_x = (canvas_w - frame_w * scale) / 2
-        offset_y = (canvas_h - frame_h * scale) / 2
-        
-        # Map click to frame coordinates
-        frame_x = int((event.x - offset_x) / scale)
-        frame_y = int((event.y - offset_y) / scale)
-        
-        # Clamp to frame bounds
-        frame_x = max(0, min(frame_x, frame_w - 1))
-        frame_y = max(0, min(frame_y, frame_h - 1))
-        
-        self.points.append((frame_x, frame_y))
-        print(f"Point {len(self.points)}: ({frame_x}, {frame_y})")
-        
-        self._update_display()
-        
-        # If 4 points drawn, finish
-        if len(self.points) >= 4:
-            self.canvas.unbind("<Button-1>")
-            self._finish()
-    
-    def _update_display(self):
-        """Update canvas display with current points"""
-        canvas_w = self.canvas.winfo_width()
-        canvas_h = self.canvas.winfo_height()
-        
-        if canvas_w <= 1 or canvas_h <= 1:
+        if not self.is_active or len(self.points) >= 4:
             return
         
+        # Convert canvas coordinates to frame coordinates
+        x_canvas = event.x - self.offset_x
+        y_canvas = event.y - self.offset_y
+        
+        x_frame = int(x_canvas / self.scale)
+        y_frame = int(y_canvas / self.scale)
+        
+        # Check if click is within frame bounds
+        if 0 <= x_frame < self.frame_rgb.shape[1] and 0 <= y_frame < self.frame_rgb.shape[0]:
+            self.points.append((x_frame, y_frame))
+            print(f"Point {len(self.points)}/4: ({x_frame}, {y_frame})")
+            self._update_display()
+            
+            # If 4 points are selected, finish automatically
+            if len(self.points) == 4:
+                print("4 points selected! Processing...")
+                self._finish()
+    
+    def _update_display(self):
+        """Update canvas display with frame and points"""
         # Resize frame to fit canvas
-        frame_h, frame_w = self.frame.shape[:2]
-        scale = min(canvas_w / frame_w, canvas_h / frame_h)
-        new_w = int(frame_w * scale)
-        new_h = int(frame_h * scale)
+        h, w = self.frame_rgb.shape[:2]
+        self.canvas_width = self.canvas.winfo_width()
+        self.canvas_height = self.canvas.winfo_height()
         
-        frame_resized = cv2.resize(self.frame, (new_w, new_h))
-        
-        # Draw points
-        for i, (px, py) in enumerate(self.points):
-            px_scaled = int(px * scale)
-            py_scaled = int(py * scale)
-            cv2.circle(frame_resized, (px_scaled, py_scaled), 5, (0, 255, 0), -1)
-            cv2.putText(frame_resized, str(i+1), (px_scaled+10, py_scaled-10),
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        
-        # Draw polygon if have points
-        if len(self.points) > 1:
-            pts = np.array([(int(p[0]*scale), int(p[1]*scale)) for p in self.points], dtype=np.int32)
-            cv2.polylines(frame_resized, [pts], False, (0, 255, 255), 2)
-        
-        # Convert and display
-        frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
-        img = Image.fromarray(frame_rgb)
-        photo = ImageTk.PhotoImage(image=img)
-        
-        self.canvas.delete("all")
-        self.canvas.create_image(canvas_w // 2, canvas_h // 2, image=photo, anchor=tk.CENTER)
-        self.canvas.image = photo
+        if self.canvas_width > 1 and self.canvas_height > 1:
+            self.scale = min(self.canvas_width / w, self.canvas_height / h)
+            new_w = int(w * self.scale)
+            new_h = int(h * self.scale)
+            
+            frame_scaled = cv2.resize(self.frame_rgb, (new_w, new_h))
+            
+            # Draw points on frame
+            frame_draw = frame_scaled.copy()
+            for i, pt in enumerate(self.points):
+                pt_scaled = (int(pt[0] * self.scale), int(pt[1] * self.scale))
+                cv2.circle(frame_draw, pt_scaled, 8, (0, 255, 0), -1)
+                cv2.circle(frame_draw, pt_scaled, 12, (0, 255, 0), 2)
+                cv2.putText(frame_draw, str(i+1), (pt_scaled[0]+20, pt_scaled[1]-20),
+                           cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 0), 2)
+                if i > 0:
+                    prev_pt = (int(self.points[i-1][0] * self.scale), int(self.points[i-1][1] * self.scale))
+                    cv2.line(frame_draw, prev_pt, pt_scaled, (0, 255, 0), 2)
+            
+            # Draw closing line if we have 4 points
+            if len(self.points) == 4:
+                pt0 = (int(self.points[0][0] * self.scale), int(self.points[0][1] * self.scale))
+                pt_last = (int(self.points[-1][0] * self.scale), int(self.points[-1][1] * self.scale))
+                cv2.line(frame_draw, pt_last, pt0, (0, 255, 0), 2)
+                # Fill polygon with transparency
+                points_scaled = np.array([(int(p[0] * self.scale), int(p[1] * self.scale)) for p in self.points], dtype=np.int32)
+                overlay = frame_draw.copy()
+                cv2.fillPoly(overlay, [points_scaled], (0, 255, 0))
+                cv2.addWeighted(overlay, 0.2, frame_draw, 0.8, 0, frame_draw)
+            
+            # Add text instructions on frame
+            cv2.putText(frame_draw, f"Points: {len(self.points)}/4", (20, 50),
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 255, 0), 2)
+            
+            if len(self.points) < 4:
+                cv2.putText(frame_draw, "Click to add points", (20, 100),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            else:
+                cv2.putText(frame_draw, "READY! Configuring...", (20, 100),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 255), 3)
+            
+            # Convert to PIL and display
+            try:
+                pil_img = Image.fromarray(frame_draw)
+                self.photo = ImageTk.PhotoImage(pil_img)
+                
+                # Center image on canvas
+                self.offset_x = (self.canvas_width - new_w) // 2
+                self.offset_y = (self.canvas_height - new_h) // 2
+                
+                # Clear and redraw
+                self.canvas.delete("all")
+                self.canvas.create_image(self.offset_x, self.offset_y, image=self.photo, anchor='nw')
+            except Exception as e:
+                print(f"Error updating display: {e}")
     
     def _finish(self):
-        """Called when 4 points are drawn"""
-        print(f"Polygon finished: {self.points}")
+        """Finish polygon selection after 4 points"""
+        if len(self.points) != 4:
+            return
+        
+        self.is_active = False
+        self.canvas.unbind("<Button-1>", self.canvas_id)
         self.callback(self.points)
+        print(f"✓ ROI polygon created with 4 points")
 
 
 # ============================================================================
-# GUI Main Class
+# GUI Application
 # ============================================================================
 
 class ByteTrackGUI:
@@ -154,185 +207,203 @@ class ByteTrackGUI:
         self.tracker = None
         self.detector = None
         
-        # Traffic lane & violation
+        # Traffic lane & violation management
         self.violation_detector = ViolationDetector()
-        self.traffic_lanes = {}
-        self.selected_roi = None
-        self.roi_selector_active = False
+        self.traffic_lanes = {}  # {lane_id: TrafficLane}
+        self.no_parking_zones = {}  # {zone_id: NoParkingZone}
         
         # Queue for frame display
         self.frame_queue = queue.Queue(maxsize=2)
-        
-        # Model path (hardcoded by default)
-        self.model_path = r"D:\Learn\Year4\KLTN\Dataset\traffic_yolo_v11m_4class\best_(4).pt"
         
         # Create GUI
         self.create_widgets()
         
     def create_widgets(self):
-        """Create all GUI widgets - LEFT settings panel + RIGHT video panel"""
+        """Create all GUI widgets"""
         
-        # Configure grid - settings on left (fixed), video on right (expandable)
-        self.root.columnconfigure(0, weight=0, minsize=200)  # Left - fixed width
-        self.root.columnconfigure(1, weight=1)  # Right - expandable
+        # Configure main grid - settings on left, video on right
+        self.root.columnconfigure(0, weight=0)  # Settings - fixed width
+        self.root.columnconfigure(1, weight=1)  # Video - takes remaining space
         self.root.rowconfigure(0, weight=1)
         
-        # ===== LEFT PANEL: Settings =====
-        left_frame = ttk.LabelFrame(self.root, text="⚙ Settings", padding="8")
-        left_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), 
-                       padx=3, pady=3, ipadx=5, ipady=5)
-        left_frame.columnconfigure(0, weight=1)
+        # LEFT PANEL: Settings
+        settings_frame = ttk.LabelFrame(self.root, text="⚙ Settings", padding="8")
+        settings_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), 
+                           padx=3, pady=3, ipadx=5, ipady=5)
+        settings_frame.columnconfigure(0, weight=1)
         
-        row = 0
+        # Video Selection
+        ttk.Label(settings_frame, text="Video:", font=("Arial", 8, "bold")).grid(
+            row=0, column=0, sticky=tk.W, pady=2)
         
-        # --- Video Selection ---
-        ttk.Label(left_frame, text="Video:", font=("Arial", 8, "bold")).grid(
-            row=row, column=0, sticky=tk.W, pady=2)
-        row += 1
-        
-        self.video_label = ttk.Label(left_frame, text="None", 
+        self.video_label = ttk.Label(settings_frame, text="None", 
                                      foreground="gray", font=("Arial", 7), wraplength=140)
-        self.video_label.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
-        row += 1
+        self.video_label.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
         
-        ttk.Button(left_frame, text="Browse", command=self.browse_video, width=15).grid(
-            row=row, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
-        row += 1
+        ttk.Button(settings_frame, text="Browse", command=self.browse_video, width=15).grid(
+            row=2, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
         
-        # --- Model Path ---
-        ttk.Label(left_frame, text="Model:", font=("Arial", 8, "bold")).grid(
-            row=row, column=0, sticky=tk.W, pady=2)
-        row += 1
+        # Model Path
+        ttk.Label(settings_frame, text="Model:", font=("Arial", 8, "bold")).grid(
+            row=3, column=0, sticky=tk.W, pady=2)
         
-        model_label = ttk.Label(left_frame, text="YOLO11s", 
+        self.model_path = r"D:\Learn\Year4\KLTN\Dataset\traffic_yolo_v11m_mixclass\best (8).pt"
+        model_label = ttk.Label(settings_frame, text="YOLO11s", 
                                foreground="blue", font=("Arial", 7))
-        model_label.grid(row=row, column=0, sticky=tk.W, pady=(0, 5))
-        row += 1
+        model_label.grid(row=4, column=0, sticky=tk.W, pady=(0, 5))
         
-        # --- Device Selection ---
-        ttk.Label(left_frame, text="Device:", font=("Arial", 8, "bold")).grid(
-            row=row, column=0, sticky=tk.W, pady=2)
-        row += 1
+        # Device Selection
+        ttk.Label(settings_frame, text="Device:", font=("Arial", 8, "bold")).grid(
+            row=5, column=0, sticky=tk.W, pady=2)
         
         self.device_var = tk.StringVar(value="cuda")
-        device_frame = ttk.Frame(left_frame)
-        device_frame.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
+        device_frame = ttk.Frame(settings_frame)
+        device_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
+        
         ttk.Radiobutton(device_frame, text="GPU", variable=self.device_var, 
                        value="cuda").pack(side=tk.LEFT, padx=(0, 10))
         ttk.Radiobutton(device_frame, text="CPU", variable=self.device_var, 
                        value="cpu").pack(side=tk.LEFT)
-        row += 1
         
-        # --- Separator ---
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).grid(
-            row=row, column=0, sticky=(tk.W, tk.E), pady=3)
-        row += 1
+        # Separator
+        ttk.Separator(settings_frame, orient=tk.HORIZONTAL).grid(
+            row=7, column=0, sticky=(tk.W, tk.E), pady=3)
         
-        # --- Detection Confidence ---
-        ttk.Label(left_frame, text="Detection:", font=("Arial", 8, "bold")).grid(
-            row=row, column=0, sticky=tk.W, pady=2)
-        row += 1
-        
+        # Detection Confidence
+        ttk.Label(settings_frame, text="Detection:", font=("Arial", 8, "bold")).grid(
+            row=8, column=0, sticky=tk.W, pady=2)
         self.det_conf_var = tk.DoubleVar(value=0.01)
-        det_conf_scale = ttk.Scale(left_frame, from_=0.0, to=1.0, 
+        det_conf_scale = ttk.Scale(settings_frame, from_=0.0, to=1.0, 
                                    variable=self.det_conf_var, orient=tk.HORIZONTAL)
-        det_conf_scale.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=(0, 1))
-        row += 1
-        
-        self.det_conf_label = ttk.Label(left_frame, text="0.01", font=("Arial", 7))
-        self.det_conf_label.grid(row=row, column=0, sticky=tk.W)
+        det_conf_scale.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 1))
+        self.det_conf_label = ttk.Label(settings_frame, text="0.01", font=("Arial", 7))
+        self.det_conf_label.grid(row=10, column=0, sticky=tk.W)
         det_conf_scale.config(command=lambda v: self.det_conf_label.config(
             text=f"{float(v):.2f}"))
-        row += 1
         
-        # --- Separator ---
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).grid(
-            row=row, column=0, sticky=(tk.W, tk.E), pady=3)
-        row += 1
+        # Separator
+        ttk.Separator(settings_frame, orient=tk.HORIZONTAL).grid(
+            row=11, column=0, sticky=(tk.W, tk.E), pady=3)
         
-        # --- Track Settings ---
-        ttk.Label(left_frame, text="Track Buf:", font=("Arial", 7)).grid(
-            row=row, column=0, sticky=tk.W, pady=2)
-        row += 1
-        
+        # Track Settings
+        ttk.Label(settings_frame, text="Track Buf:", font=("Arial", 7)).grid(
+            row=12, column=0, sticky=tk.W, pady=2)
         self.track_buffer_var = tk.IntVar(value=30)
-        buffer_spinbox = ttk.Spinbox(left_frame, from_=1, to=100, 
+        buffer_spinbox = ttk.Spinbox(settings_frame, from_=1, to=100, 
                                      textvariable=self.track_buffer_var, width=12)
-        buffer_spinbox.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=1)
-        row += 1
+        buffer_spinbox.grid(row=13, column=0, sticky=(tk.W, tk.E), pady=1)
         
-        ttk.Label(left_frame, text="Min Area:", font=("Arial", 7)).grid(
-            row=row, column=0, sticky=tk.W, pady=2)
-        row += 1
-        
+        ttk.Label(settings_frame, text="Min Area:", font=("Arial", 7)).grid(
+            row=14, column=0, sticky=tk.W, pady=2)
         self.min_box_area_var = tk.IntVar(value=400)
-        area_spinbox = ttk.Spinbox(left_frame, from_=100, to=5000, increment=100,
+        area_spinbox = ttk.Spinbox(settings_frame, from_=100, to=5000, increment=100,
                                    textvariable=self.min_box_area_var, width=12)
-        area_spinbox.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=1)
-        row += 1
+        area_spinbox.grid(row=15, column=0, sticky=(tk.W, tk.E), pady=1)
         
-        ttk.Label(left_frame, text="Edge:", font=("Arial", 7)).grid(
-            row=row, column=0, sticky=tk.W, pady=2)
-        row += 1
-        
+        ttk.Label(settings_frame, text="Edge:", font=("Arial", 7)).grid(
+            row=16, column=0, sticky=tk.W, pady=2)
         self.edge_margin_var = tk.IntVar(value=10)
-        margin_spinbox = ttk.Spinbox(left_frame, from_=0, to=100, increment=5,
+        margin_spinbox = ttk.Spinbox(settings_frame, from_=0, to=100, increment=5,
                                      textvariable=self.edge_margin_var, width=12)
-        margin_spinbox.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=1)
-        row += 1
+        margin_spinbox.grid(row=17, column=0, sticky=(tk.W, tk.E), pady=1)
         
-        # --- Output Settings ---
+        # Output Settings
         self.save_output_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(left_frame, text="Save output", 
+        ttk.Checkbutton(settings_frame, text="Save output", 
                        variable=self.save_output_var,
-                       command=self.toggle_output).grid(row=row, column=0, 
+                       command=self.toggle_output).grid(row=18, column=0, 
                                                         sticky=tk.W, pady=5)
-        row += 1
         
-        # --- Separator ---
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).grid(
-            row=row, column=0, sticky=(tk.W, tk.E), pady=3)
-        row += 1
+        # Separator
+        ttk.Separator(settings_frame, orient=tk.HORIZONTAL).grid(
+            row=19, column=0, sticky=(tk.W, tk.E), pady=3)
         
-        # --- Violation Detection ---
-        ttk.Label(left_frame, text="Violation Detection", 
-                 font=("Arial", 8, "bold")).grid(row=row, column=0, sticky=tk.W, pady=3)
-        row += 1
+        # ===== VIOLATION DETECTION SECTION =====
+        ttk.Label(settings_frame, text="Violation Detection", 
+                 font=("Arial", 9, "bold")).grid(row=20, column=0, sticky=tk.W, pady=(8, 3))
         
         self.enable_violation_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(left_frame, text="Enable violation check", 
+        ttk.Checkbutton(settings_frame, text="✓ Enable violation check", 
                        variable=self.enable_violation_var).grid(
-                       row=row, column=0, sticky=tk.W, pady=1)
-        row += 1
+                       row=21, column=0, sticky=tk.W, pady=(1, 5))
         
-        # --- ROI Selection Buttons ---
-        lane_btn_frame = ttk.Frame(left_frame)
-        lane_btn_frame.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=3)
+        # ===== TRAFFIC LANES SECTION =====
+        ttk.Label(settings_frame, text="Traffic Lanes", 
+                 font=("Arial", 8, "bold")).grid(row=22, column=0, sticky=tk.W, pady=(3, 2))
+        
+        lane_btn_frame = ttk.Frame(settings_frame)
+        lane_btn_frame.grid(row=23, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
+        
         ttk.Button(lane_btn_frame, text="New Lane", 
-                  command=self.setup_traffic_lanes, width=11).pack(side=tk.LEFT, padx=(0, 2), fill=tk.X, expand=True)
+                  command=self.setup_traffic_lanes, width=12).pack(side=tk.LEFT, padx=(0, 2), fill=tk.X, expand=True)
         ttk.Button(lane_btn_frame, text="Modify", 
                   command=self.modify_traffic_lane, width=8).pack(side=tk.LEFT, padx=1, fill=tk.X, expand=True)
         ttk.Button(lane_btn_frame, text="Delete", 
                   command=self.delete_traffic_lane, width=8).pack(side=tk.LEFT, padx=(1, 0), fill=tk.X, expand=True)
-        row += 1
-        
-        # --- Lane Info ---
-        self.lane_info_label = ttk.Label(left_frame, 
-                                        text="No lanes configured", 
+
+        # Lane Info Display
+        self.lane_list_label = ttk.Label(settings_frame, 
+                                        text="0 lanes", 
                                         foreground="orange", 
-                                        font=("Arial", 7), 
+                                        font=("Arial", 6, "bold"))
+        self.lane_list_label.grid(row=24, column=0, sticky=tk.W, pady=(2, 0))
+        
+        self.lane_detail_label = ttk.Label(settings_frame, 
+                                          text="", 
+                                          foreground="blue", 
+                                          font=("Arial", 5), 
+                                          wraplength=140, 
+                                          justify=tk.LEFT)
+        self.lane_detail_label.grid(row=25, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
+        
+        # ===== NO-PARKING ZONES SECTION =====
+        ttk.Label(settings_frame, text="No-Parking Zones", 
+                 font=("Arial", 8, "bold")).grid(row=26, column=0, sticky=tk.W, pady=(4, 1))
+        
+        ttk.Label(settings_frame, text="Timeout (frames):", 
+                 font=("Arial", 7)).grid(row=27, column=0, sticky=tk.W, pady=(1, 1))
+        self.no_park_frames_var = tk.IntVar(value=45)
+        no_park_spinbox = ttk.Spinbox(settings_frame, from_=10, to=300,
+                                      textvariable=self.no_park_frames_var, width=12)
+        no_park_spinbox.grid(row=28, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
+
+        no_parking_btn_frame = ttk.Frame(settings_frame)
+        no_parking_btn_frame.grid(row=29, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
+        ttk.Button(no_parking_btn_frame, text="New Zone", 
+              command=self.setup_no_parking_zone, width=13).pack(side=tk.LEFT, padx=(0, 2), fill=tk.X, expand=True)
+        ttk.Button(no_parking_btn_frame, text="Clear All", 
+              command=self.clear_no_parking_zones, width=9).pack(side=tk.LEFT, padx=(2, 0), fill=tk.X, expand=True)
+        
+        # No-Parking Info Display
+        self.zone_list_label = ttk.Label(settings_frame, 
+                                        text="0 zones", 
+                                        foreground="orange", 
+                                        font=("Arial", 6, "bold"))
+        self.zone_list_label.grid(row=30, column=0, sticky=tk.W, pady=(2, 0))
+        
+        self.zone_detail_label = ttk.Label(settings_frame, 
+                                          text="", 
+                                          foreground="blue", 
+                                          font=("Arial", 5), 
+                                          wraplength=140, 
+                                          justify=tk.LEFT)
+        self.zone_detail_label.grid(row=31, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
+        
+        # Combined info label (kept for backwards compatibility)
+        self.lane_info_label = ttk.Label(settings_frame, 
+                                        text="", 
+                                        foreground="green", 
+                                        font=("Arial", 6), 
                                         wraplength=140)
-        self.lane_info_label.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
-        row += 1
+        self.lane_info_label.grid(row=32, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
         
-        # --- Separator ---
-        ttk.Separator(left_frame, orient=tk.HORIZONTAL).grid(
-            row=row, column=0, sticky=(tk.W, tk.E), pady=3)
-        row += 1
+        # Separator
+        ttk.Separator(settings_frame, orient=tk.HORIZONTAL).grid(
+            row=33, column=0, sticky=(tk.W, tk.E), pady=2)
         
-        # --- Control Buttons ---
-        button_frame = ttk.Frame(left_frame)
-        button_frame.grid(row=row, column=0, sticky=(tk.W, tk.E), pady=(5, 0))
+        # Control Buttons
+        button_frame = ttk.Frame(settings_frame)
+        button_frame.grid(row=34, column=0, sticky=(tk.W, tk.E), pady=(3, 0))
         
         self.start_button = ttk.Button(button_frame, text="Start", 
                                        command=self.start_processing)
@@ -342,24 +413,23 @@ class ByteTrackGUI:
                                       command=self.stop_processing, 
                                       state=tk.DISABLED)
         self.stop_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
-        row += 1
         
-        # --- Spacer to push to top ---
-        ttk.Label(left_frame, text="").grid(row=row, column=0, sticky=(tk.W, tk.E), pady=10)
-        left_frame.rowconfigure(row, weight=1)
+        # Add spacer
+        ttk.Label(settings_frame, text="").grid(row=35, column=0, sticky=(tk.W, tk.E), pady=5)
+        settings_frame.rowconfigure(35, weight=1)
         
-        # ===== RIGHT PANEL: Video Display =====
+        # RIGHT PANEL: Video display
         right_frame = ttk.Frame(self.root, padding="5")
         right_frame.grid(row=0, column=1, sticky=(tk.W, tk.E, tk.N, tk.S), padx=3, pady=3)
         right_frame.columnconfigure(0, weight=1)
         right_frame.rowconfigure(0, weight=1)
         right_frame.rowconfigure(1, weight=0)
         
-        # --- Large Video Canvas ---
+        # Video Display Canvas
         self.canvas = tk.Canvas(right_frame, width=1300, height=750, bg="black")
         self.canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 5))
         
-        # --- Status & Progress (at bottom) ---
+        # Status & Progress
         status_frame = ttk.Frame(right_frame)
         status_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 0))
         
@@ -370,7 +440,7 @@ class ByteTrackGUI:
         self.progress_bar = ttk.Progressbar(status_frame, variable=self.progress_var, 
                                            maximum=100, mode='determinate', length=300)
         self.progress_bar.pack(side=tk.RIGHT, padx=(10, 0))
-    
+        
     def browse_video(self):
         """Open file dialog to select video"""
         filename = filedialog.askopenfilename(
@@ -388,16 +458,20 @@ class ByteTrackGUI:
             
             # Clear lanes when video changes
             self.traffic_lanes.clear()
+            self.no_parking_zones.clear()
             self.violation_detector.lanes.clear()
+            self.violation_detector.no_parking_zones.clear()
+            self.violation_detector.no_parking_state.clear()
             self.violation_detector.persistent_violations.clear()
             self.violation_detector.previous_positions.clear()
             self.update_lane_info_display()
+            print("  Violation polygons cleared for new video")
             
             # Suggest output path
             if self.save_output_var.get():
                 output_name = Path(filename).stem + "_tracked.mp4"
                 self.output_path = str(Path(filename).parent / output_name)
-    
+                
     def toggle_output(self):
         """Toggle output video saving"""
         if self.save_output_var.get() and self.video_path:
@@ -407,11 +481,7 @@ class ByteTrackGUI:
             self.output_path = None
     
     def setup_traffic_lanes(self):
-        """Setup traffic lanes - draw 4 points then configure vehicle types"""
-        if not self.video_path:
-            messagebox.showerror("Error", "Please select a video first!")
-            return
-        
+        """Actually setup traffic lanes - draw 4 points then configure vehicle types"""
         # Open video to get first frame
         cap = cv2.VideoCapture(self.video_path)
         ret, frame = cap.read()
@@ -429,6 +499,7 @@ class ByteTrackGUI:
                 device=self.device_var.get()
             )
             class_names = detector_temp.class_names
+            del detector_temp
         except Exception as e:
             messagebox.showerror("Error", f"Cannot load model: {str(e)}")
             return
@@ -440,7 +511,7 @@ class ByteTrackGUI:
         polygon_result = [None]
         
         def on_polygon_finished(polygon):
-            """Called when 4 points are drawn"""
+            """Called when 4 points are drawn - show vehicle type dialog"""
             polygon_result[0] = polygon
             
             # Clear canvas
@@ -449,30 +520,51 @@ class ByteTrackGUI:
             # Create dialog for vehicle type selection
             config_window = tk.Toplevel(self.root)
             config_window.title("Select Allowed Vehicle Types")
-            config_window.geometry("400x400")
+            config_window.geometry("450x450")
             config_window.resizable(False, False)
             
-            ttk.Label(config_window, text=f"Lane {len(self.traffic_lanes) + 1}:", 
-                     font=("Arial", 10, "bold")).pack(pady=10)
-            ttk.Label(config_window, text="Which vehicle types are allowed in this lane?", 
-                     font=("Arial", 9)).pack(pady=5)
+            # Title
+            ttk.Label(config_window, text=f"Lane {len(self.traffic_lanes) + 1}: Select Vehicle Types", 
+                     font=("Arial", 11, "bold")).pack(pady=10)
+            ttk.Label(config_window, text="Which vehicles are ALLOWED to use this lane?", 
+                     font=("Arial", 9)).pack(pady=(0, 10))
+            
+            # Help text
+            ttk.Label(config_window, text=" Check = allowed in this lane\n✗ Uncheck = violation if detected", 
+                     font=("Arial", 8, "italic"), foreground="gray").pack(pady=(0, 10))
             
             # Checkboxes for vehicle types
             class_vars = {}
-            ttk.Label(config_window, text="Allowed vehicle types:", 
-                     font=("Arial", 9, "bold")).pack(pady=(5, 10))
+            ttk.Label(config_window, text="Vehicle Types:", 
+                     font=("Arial", 9, "bold")).pack(pady=(5, 5), anchor=tk.W, padx=15)
+            
             cb_frame = ttk.Frame(config_window)
-            cb_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+            cb_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=5)
+            
+            # Create scrollable list
+            canvas_scroll = tk.Canvas(cb_frame, height=200)
+            scrollbar = ttk.Scrollbar(cb_frame, orient=tk.VERTICAL, command=canvas_scroll.yview)
+            scrollable_frame = ttk.Frame(canvas_scroll)
+            
+            scrollable_frame.bind(
+                "<Configure>",
+                lambda e: canvas_scroll.configure(scrollregion=canvas_scroll.bbox("all"))
+            )
+            
+            canvas_scroll.create_window((0, 0), window=scrollable_frame, anchor="nw")
+            canvas_scroll.configure(yscrollcommand=scrollbar.set)
             
             for class_id, class_name in sorted(class_names.items()):
                 var = tk.BooleanVar(value=False)
-                # Default: select common vehicle types
                 if 'car' in class_name.lower() or 'motorcycle' in class_name.lower():
                     var.set(True)
                 
-                cb = ttk.Checkbutton(cb_frame, text=f"{class_name} (ID:{class_id})", variable=var)
-                cb.pack(anchor=tk.W, pady=3)
+                cb = ttk.Checkbutton(scrollable_frame, text=f"{class_name} (ID:{class_id})", variable=var)
+                cb.pack(anchor=tk.W, pady=2)
                 class_vars[class_id] = var
+            
+            canvas_scroll.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
             
             # Button frame
             btn_frame = ttk.Frame(config_window)
@@ -489,71 +581,88 @@ class ByteTrackGUI:
                 try:
                     lane_id = len(self.traffic_lanes) + 1
                     lane_name = f"Lane {lane_id}"
-                    direction = (1.0, 0.0)
                     
                     lane = TrafficLane(
                         lane_id=lane_id,
                         name=lane_name,
                         polygon=polygon_result[0],
                         allowed_classes=allowed_classes,
-                        direction_vector=direction
+                        direction_vector=(1.0, 0.0)
                     )
                     
                     self.traffic_lanes[lane_id] = lane
                     self.violation_detector.add_lane(lane)
                     
-                    # Redraw first frame
                     self._display_frame_on_canvas(frame)
                     
-                    messagebox.showinfo("Success!", f"Lane {lane_id} created successfully!")
+                    vehicle_types = ', '.join([class_names.get(cid, f'ID{cid}') for cid in allowed_classes])
+                    messagebox.showinfo(" Success!", f"Lane {lane_id} created successfully!\n\nAllowed vehicles: {vehicle_types}")
+                    
                     self.update_lane_info_display()
                     config_window.destroy()
                     
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to create lane: {str(e)}")
             
-            ttk.Button(btn_frame, text="✓ OK - Save Lane", command=on_ok).pack(side=tk.LEFT, padx=5)
-            ttk.Button(btn_frame, text="✗ Cancel", command=config_window.destroy).pack(side=tk.LEFT, padx=5)
+            ttk.Button(btn_frame, text=" OK - Save Lane", command=on_ok).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+            ttk.Button(btn_frame, text=" Cancel", command=config_window.destroy).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         
-        # Create ROI selector to draw 4 points
+        # Create ROI selector
         roi_selector = ROISelector(frame, self.canvas, on_polygon_finished)
-    
-    def delete_traffic_lane(self):
-        """Delete a traffic lane"""
-        if len(self.traffic_lanes) == 0:
-            messagebox.showerror("Error", "No lanes to delete!")
+
+    def setup_no_parking_zone(self):
+        """Actually setup a no-parking polygon zone"""
+        cap = cv2.VideoCapture(self.video_path)
+        ret, frame = cap.read()
+        cap.release()
+
+        if not ret:
+            messagebox.showerror("Error", "Cannot read video")
             return
-        
-        select_window = tk.Toplevel(self.root)
-        select_window.title("Select Lane to Delete")
-        select_window.geometry("300x250")
-        select_window.resizable(False, False)
-        
-        ttk.Label(select_window, text="Select a lane to delete:", 
-                 font=("Arial", 10, "bold")).pack(pady=10)
-        
-        listbox = tk.Listbox(select_window, height=8, font=("Arial", 9))
-        listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
-        
-        for lane_id, lane in self.traffic_lanes.items():
-            listbox.insert(tk.END, f"Lane {lane_id}: {lane.name}")
-        
-        def on_delete():
+
+        self.root.deiconify()
+        self.canvas.focus_set()
+
+        def on_polygon_finished(polygon):
+            self.canvas.delete("all")
+
             try:
-                idx = listbox.curselection()[0]
-                selected_lane_id = list(self.traffic_lanes.keys())[idx]
-                
-                if messagebox.askyesno("Confirm", f"Delete Lane {selected_lane_id}?"):
-                    del self.traffic_lanes[selected_lane_id]
-                    if selected_lane_id in self.violation_detector.lanes:
-                        del self.violation_detector.lanes[selected_lane_id]
-                    select_window.destroy()
-                    messagebox.showinfo("Success", f"Lane {selected_lane_id} deleted!")
-                    self.update_lane_info_display()
-            except IndexError:
-                messagebox.showerror("Error", "Please select a lane!")
-        
-        ttk.Button(select_window, text="Delete Selected", command=on_delete).pack(pady=10)
+                zone_id = len(self.no_parking_zones) + 1
+                timeout_frames = self.no_park_frames_var.get()
+                zone = NoParkingZone(
+                    zone_id=zone_id,
+                    name=f"NoParking {zone_id}",
+                    polygon=polygon,
+                    parking_frame_threshold=timeout_frames,
+                    movement_threshold=6.0,
+                )
+                self.no_parking_zones[zone_id] = zone
+                self.violation_detector.add_no_parking_zone(zone)
+                self._display_frame_on_canvas(frame)
+                self.update_lane_info_display()
+                messagebox.showinfo(
+                    "Success!",
+                    f"No-parking zone {zone_id} created successfully!\n\n"
+                    f"Parking timeout: {timeout_frames} frames\n"
+                    f"(vehicle must stay > {timeout_frames} frames = violation)"
+                )
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to create no-parking zone: {str(e)}")
+
+        roi_selector = ROISelector(frame, self.canvas, on_polygon_finished)
+
+    def clear_no_parking_zones(self):
+        """Delete all no-parking zones"""
+        if len(self.no_parking_zones) == 0:
+            messagebox.showerror("Error", "No no-parking zones to clear!")
+            return
+
+        if messagebox.askyesno("Confirm", "Delete all no-parking zones?"):
+            self.no_parking_zones.clear()
+            self.violation_detector.no_parking_zones.clear()
+            self.violation_detector.no_parking_state.clear()
+            self.update_lane_info_display()
+            messagebox.showinfo("Success", "All no-parking zones deleted!")
     
     def modify_traffic_lane(self):
         """Modify an existing lane"""
@@ -565,7 +674,6 @@ class ByteTrackGUI:
             messagebox.showerror("Error", "Please select a video first!")
             return
         
-        # Create dialog to select which lane to modify
         select_window = tk.Toplevel(self.root)
         select_window.title("Select Lane to Modify")
         select_window.geometry("300x250")
@@ -574,12 +682,13 @@ class ByteTrackGUI:
         ttk.Label(select_window, text="Select a lane to modify:", 
                  font=("Arial", 10, "bold")).pack(pady=10)
         
-        # Listbox for lanes
         listbox = tk.Listbox(select_window, height=8, font=("Arial", 9))
         listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
         
         for lane_id, lane in self.traffic_lanes.items():
-            listbox.insert(tk.END, f"Lane {lane_id}: {lane.name}")
+            class_names_str = ", ".join([self.detector.class_names.get(cid, f"ID{cid}") 
+                                        for cid in lane.allowed_classes])
+            listbox.insert(tk.END, f"Lane {lane_id}: {class_names_str}")
         
         def on_select():
             try:
@@ -598,17 +707,8 @@ class ByteTrackGUI:
             messagebox.showerror("Error", "Please select a video first!")
             return
         
-        cap = cv2.VideoCapture(self.video_path)
-        ret, frame = cap.read()
-        cap.release()
-        
-        if not ret:
-            messagebox.showerror("Error", "Cannot read video")
-            return
-        
         lane = self.traffic_lanes[lane_id]
         
-        # Create dialog for vehicle type selection
         edit_window = tk.Toplevel(self.root)
         edit_window.title(f"Modify Lane {lane_id}")
         edit_window.geometry("400x400")
@@ -617,7 +717,6 @@ class ByteTrackGUI:
         ttk.Label(edit_window, text=f"Lane {lane_id}: Edit Allowed Vehicles", 
                  font=("Arial", 10, "bold")).pack(pady=10)
         
-        # Checkboxes for vehicle types
         class_vars = {}
         cb_frame = ttk.Frame(edit_window)
         cb_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
@@ -649,18 +748,47 @@ class ByteTrackGUI:
         ttk.Button(btn_frame, text="✓ Save Changes", command=on_save).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
         ttk.Button(btn_frame, text="✗ Cancel", command=edit_window.destroy).pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
     
-    def update_lane_info_display(self):
-        """Update lane info display in settings"""
+    def delete_traffic_lane(self):
+        """Delete a traffic lane"""
         if len(self.traffic_lanes) == 0:
-            self.lane_info_label.config(text="No lanes configured", foreground="orange")
-        else:
-            lanes_text = f"{len(self.traffic_lanes)} lane(s):\n"
-            for lane_id, lane in self.traffic_lanes.items():
-                lanes_text += f"• Lane {lane_id}: {lane.name}\n"
-            self.lane_info_label.config(text=lanes_text.strip(), foreground="green")
+            messagebox.showerror("Error", "No lanes to delete!")
+            return
+        
+        select_window = tk.Toplevel(self.root)
+        select_window.title("Select Lane to Delete")
+        select_window.geometry("300x250")
+        select_window.resizable(False, False)
+        
+        ttk.Label(select_window, text="Select a lane to delete:", 
+                 font=("Arial", 10, "bold")).pack(pady=10)
+        
+        listbox = tk.Listbox(select_window, height=8, font=("Arial", 9))
+        listbox.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+        
+        for lane_id, lane in self.traffic_lanes.items():
+            class_names_str = ", ".join([self.detector.class_names.get(cid, f"ID{cid}") 
+                                        for cid in lane.allowed_classes])
+            listbox.insert(tk.END, f"Lane {lane_id}: {class_names_str}")
+        
+        def on_delete():
+            try:
+                idx = listbox.curselection()[0]
+                selected_lane_id = list(self.traffic_lanes.keys())[idx]
+                
+                if messagebox.askyesno("Confirm", f"Delete Lane {selected_lane_id}?"):
+                    del self.traffic_lanes[selected_lane_id]
+                    if selected_lane_id in self.violation_detector.lanes:
+                        del self.violation_detector.lanes[selected_lane_id]
+                    select_window.destroy()
+                    messagebox.showinfo("Success", f"Lane {selected_lane_id} deleted!")
+                    self.update_lane_info_display()
+            except IndexError:
+                messagebox.showerror("Error", "Please select a lane!")
+        
+        ttk.Button(select_window, text="Delete Selected", command=on_delete).pack(pady=10)
     
     def _display_frame_on_canvas(self, frame):
-        """Display BGR frame on canvas"""
+        """Helper method to display BGR frame on canvas"""
         try:
             canvas_width = self.canvas.winfo_width()
             canvas_height = self.canvas.winfo_height()
@@ -683,6 +811,36 @@ class ByteTrackGUI:
         except Exception as e:
             print(f"Error displaying frame: {e}")
     
+    def update_lane_info_display(self):
+        """Update lane info display in settings - show lanes and zones separately"""
+        lane_count = len(self.traffic_lanes)
+        no_parking_count = len(self.no_parking_zones)
+        
+        # Update lane count label
+        if lane_count == 0:
+            self.lane_list_label.config(text="0 lanes configured", foreground="orange")
+            self.lane_detail_label.config(text="")
+        else:
+            self.lane_list_label.config(text=f"✓ {lane_count} lane(s) configured", foreground="green")
+            lanes_detail = ""
+            for lane_id, lane in sorted(self.traffic_lanes.items()):
+                vehicle_types = ", ".join([self.detector.class_names.get(cid, f"ID{cid}") 
+                                          if self.detector else f"ID{cid}"
+                                          for cid in lane.allowed_classes])
+                lanes_detail += f"  Lane {lane_id}: {vehicle_types}\n"
+            self.lane_detail_label.config(text=lanes_detail.rstrip())
+        
+        # Update no-parking zone count label
+        if no_parking_count == 0:
+            self.zone_list_label.config(text="0 zones configured", foreground="orange")
+            self.zone_detail_label.config(text="")
+        else:
+            self.zone_list_label.config(text=f"✓ {no_parking_count} zone(s) configured", foreground="green")
+            zones_detail = ""
+            for zone_id, zone in sorted(self.no_parking_zones.items()):
+                zones_detail += f"  Zone {zone_id}: {zone.parking_frame_threshold} frames\n"
+            self.zone_detail_label.config(text=zones_detail.rstrip())
+    
     def start_processing(self):
         """Start video processing in separate thread"""
         if not self.video_path:
@@ -695,7 +853,7 @@ class ByteTrackGUI:
         
         if not Path(self.model_path).exists():
             messagebox.showerror("Error", 
-                f"YOLO model not found!\nExpected: {self.model_path}")
+                f"YOLO model not found!\n\nExpected path:\n{self.model_path}")
             return
         
         self.start_button.config(state=tk.DISABLED)
@@ -726,7 +884,6 @@ class ByteTrackGUI:
                 min_box_area=self.min_box_area_var.get(),
                 edge_margin=self.edge_margin_var.get()
             )
-            print(f"✓ YOLO11s Traffic model loaded")
             
             print("Initializing ByteTrack...")
             self.tracker = BYTETracker(
@@ -753,7 +910,7 @@ class ByteTrackGUI:
             if self.save_output_var.get() and self.output_path:
                 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
                 writer = cv2.VideoWriter(self.output_path, fourcc, fps, (width, height))
-                print(f"✓ Output will be saved to: {Path(self.output_path).name}")
+                print(f"Output will be saved to: {Path(self.output_path).name}")
             
             print("="*60)
             print("Processing started...")
@@ -775,21 +932,45 @@ class ByteTrackGUI:
                 img_shape = (height, width)
                 online_tracks = self.tracker.update(detections, img_shape)
                 
-                if self.enable_violation_var.get() and len(self.traffic_lanes) > 0:
+                # Ensure track has violation_type attribute
+                for track in online_tracks:
+                    if not hasattr(track, 'violation_type'):
+                        track.violation_type = ViolationType.NONE
+                
+                # Check violations (if enabled and if there are lanes or zones configured)
+                violations_enabled = self.enable_violation_var.get()
+                has_zones_lanes = (len(self.traffic_lanes) > 0 or len(self.no_parking_zones) > 0)
+                
+                if violations_enabled and has_zones_lanes:
                     violations = self.violation_detector.detect_violations(online_tracks, frame_id)
                     for track in online_tracks:
                         if track.track_id in violations:
-                            track.violation_type = violations[track.track_id]
+                            violation_types_list = violations[track.track_id]  # List of ViolationType
+                            
+                            # Filter out NO_PARKING violations for person class
+                            class_name = self.detector.get_class_name(track.class_id) if track.class_id is not None else "unknown"
+                            if class_name.lower() == "person":
+                                # Person không bị NO_PARKING, nhưng có thể vẫn vi phạm loại khác
+                                violation_types_list = [v for v in violation_types_list if v != ViolationType.NO_PARKING]
+                            
+                            track.violation_types = violation_types_list  # Store list
+                            # Primary violation for backward compat (dùng first type)
+                            track.violation_type = violation_types_list[0] if violation_types_list else ViolationType.NONE
                         else:
+                            track.violation_types = []
                             track.violation_type = ViolationType.NONE
+                else:
+                    # No violations to check
+                    for track in online_tracks:
+                        track.violation_types = []
+                        track.violation_type = ViolationType.NONE
                 
                 elapsed = time.time() - start_time
                 fps_val = 1.0 / elapsed if elapsed > 0 else 0
                 fps_list.append(fps_val)
                 
                 if frame_id % 30 == 0 or frame_id == 1:
-                    print(f"{frame_id:<10} {len(detections):<12} "
-                          f"{len(online_tracks):<10} {fps_val:<10.2f}")
+                    print(f"{frame_id:<10} {len(detections):<12} {len(online_tracks):<10} {fps_val:<10.2f}")
                 
                 frame_vis = self.draw_tracks(frame, online_tracks, detections)
                 
@@ -809,8 +990,7 @@ class ByteTrackGUI:
                 progress = (frame_id / total_frames) * 100
                 self.progress_var.set(progress)
                 self.status_label.config(
-                    text=f"Processing: Frame {frame_id}/{total_frames} "
-                         f"({progress:.1f}%) - FPS: {fps_val:.1f}")
+                    text=f"Processing: Frame {frame_id}/{total_frames} ({progress:.1f}%) - FPS: {fps_val:.1f}")
                 
                 if not self.frame_queue.full():
                     try:
@@ -827,15 +1007,13 @@ class ByteTrackGUI:
             
             print("\n" + "="*60)
             if self.should_stop:
-                print("✓ Processing stopped by user")
+                print(" Processing stopped by user")
             else:
-                print("✓ Processing completed!")
+                print(" Processing completed!")
             print(f"  Total frames processed: {frame_id}")
             if len(fps_list) > 0:
                 print(f"  Average FPS: {np.mean(fps_list):.2f}")
             print(f"  Total tracks created: {STrack.track_id_count}")
-            if self.output_path and writer:
-                print(f"  Output saved to: {self.output_path}")
             print("="*60)
             
             self.status_label.config(text="✅ Processing completed!")
@@ -849,9 +1027,9 @@ class ByteTrackGUI:
                                    f"Total tracks: {STrack.track_id_count}")
             
         except Exception as e:
-            print(f"✗ ERROR: {str(e)}")
+            print(f" ERROR: {str(e)}")
             import traceback
-            traceback.print_exc()
+            print(traceback.format_exc())
             messagebox.showerror("Error", f"An error occurred:\n{str(e)}")
             
         finally:
@@ -869,31 +1047,38 @@ class ByteTrackGUI:
             x1, y1, x2, y2 = map(int, tlbr)
             track_id = track.track_id
             
-            if hasattr(track, 'violation_type') and track.violation_type != ViolationType.NONE:
-                color = (0, 0, 255)
+            # Check if track has any violations
+            violation_types_list = getattr(track, 'violation_types', [])
+            has_violation = len(violation_types_list) > 0
+            
+            if has_violation:
+                color = (0, 0, 255)  # Red for violations
                 line_thickness = 3
             else:
-                color = (0, 255, 0)
+                color = (0, 255, 0)  # Green for normal
                 line_thickness = 2
             
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, line_thickness)
             
             class_name = "unknown"
-            class_id_display = "?"
             if track.class_id is not None:
                 class_name = self.detector.get_class_name(track.class_id)
-                class_id_display = str(int(track.class_id))
             
-            label = f"ID:{track_id} [{class_id_display}] {class_name}"
-            if hasattr(track, 'violation_type') and track.violation_type != ViolationType.NONE:
-                label += f" | VIOLATION"
+            label = f"ID:{track_id} {class_name}"
+            
+            # Append all violations to label
+            if has_violation:
+                violation_names = {
+                    ViolationType.WRONG_VEHICLE_TYPE: "WRONG TYPE",
+                    ViolationType.NO_PARKING: "NO PARKING",
+                }
+                violation_strs = [violation_names.get(v, 'VIOLATION') for v in violation_types_list]
+                label += f" | {' + '.join(violation_strs)}"
             
             (label_w, label_h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
             cv2.rectangle(frame, (x1, y1 - label_h - 10), (x1 + label_w + 10, y1), color, -1)
-            cv2.putText(frame, label, (x1 + 5, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX,
-                       0.6, (255, 255, 255), 2)
+            cv2.putText(frame, label, (x1 + 5, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
         
-        # Draw lane polygons
         if len(self.traffic_lanes) > 0:
             for lane_id, lane in self.traffic_lanes.items():
                 polygon = np.array(lane.polygon, dtype=np.int32)
@@ -901,9 +1086,18 @@ class ByteTrackGUI:
                 cv2.fillPoly(overlay, [polygon], (0, 255, 0))
                 cv2.addWeighted(overlay, 0.1, frame, 0.9, 0, frame)
                 cv2.polylines(frame, [polygon], True, (0, 255, 0), 2)
-                cv2.putText(frame, f"Lane {lane_id}", 
-                           (polygon[0][0], polygon[0][1] - 10),
+                cv2.putText(frame, f"Lane {lane_id}", (polygon[0][0], polygon[0][1] - 10),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+        if len(self.no_parking_zones) > 0:
+            for zone_id, zone in self.no_parking_zones.items():
+                polygon = np.array(zone.polygon, dtype=np.int32)
+                overlay = frame.copy()
+                cv2.fillPoly(overlay, [polygon], (0, 165, 255))
+                cv2.addWeighted(overlay, 0.12, frame, 0.88, 0, frame)
+                cv2.polylines(frame, [polygon], True, (0, 165, 255), 2)
+                cv2.putText(frame, f"NoPark {zone_id}", (polygon[0][0], polygon[0][1] - 10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 165, 255), 2)
         
         return frame
     
@@ -934,13 +1128,20 @@ class ByteTrackGUI:
                     
             except queue.Empty:
                 pass
-            
-            self.root.after(30, self.update_display)
+        
+        self.root.after(30, self.update_display)
 
 
 def main():
-    """Main entry point"""
+    """Launch GUI application"""
     root = tk.Tk()
+    
+    style = ttk.Style()
+    try:
+        style.theme_use('clam')
+    except:
+        pass
+    
     app = ByteTrackGUI(root)
     
     print("=" * 60)

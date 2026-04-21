@@ -2,10 +2,10 @@
 
 from .bytetrack import BYTETracker, STrack, TrackState
 from .violation_detection import (
-    ViolationType, TrafficLane, TrackViolation, ViolationDetector
+    ViolationType, TrafficLane, NoParkingZone, TrackViolation, ViolationDetector
 )
 
 __all__ = [
     'BYTETracker', 'STrack', 'TrackState',
-    'ViolationType', 'TrafficLane', 'TrackViolation', 'ViolationDetector'
+    'ViolationType', 'TrafficLane', 'NoParkingZone', 'TrackViolation', 'ViolationDetector'
 ]

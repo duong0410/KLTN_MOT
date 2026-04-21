@@ -20,12 +20,12 @@ else:
 setup(
     name="bytetrack-yolo",
     version="1.0.0",
-    author="Your Name",
-    author_email="your.email@example.com",
+    author="Dai Duong",
+    author_email="tranthaidaiduong0@gmail.com",
     description="Multi-Object Tracking with ByteTrack and YOLO",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/ByteTrack-YOLO",
+    url="https://github.com/duong0410/ByteTrack-YOLO",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
