@@ -74,15 +74,20 @@ KLTN/
 ├── 📄 test_yolo11s.py            # YOLO detection testing
 ├── 📄 Train_Yolo.ipynb           # Training notebook
 │
-├── 📂 ByteTrack-YOLO/            # ByteTrack custom implementation
+├── 📂 ByteTrack-YOLO/        # ByteTrack custom implementation
+    ├── 📂 Detector_train/             
+│       ├── yolov11m.ipynb                   # Final code training
+│       └── load-data-coco-ua-detrac.ipynb   # not important 
 │   ├── main.py
-│   ├── model.py
+│   ├── models
+        ├── traffic_yolo_v11m
+            ├── best.pt                # checkpoint yolov11m train on custom data
 │   ├── run_gui.py
+    ├── model.py
+    ├── setup.py
+    ├── track_and_detect.py
 │   └── src/
 │
-├── 📂 Detector_train/            # Dataset preparation scripts
-│   ├── check_dataset_paths.py
-│   └── load-data-coco-ua-detrac.ipynb
 │
 ├── 📂 Dataset/                   # ⚠️ NOT INCLUDED IN GIT
 │   ├── MOT17/                    # MOT17 dataset
