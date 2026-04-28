@@ -6,7 +6,7 @@ import shutil
 from pathlib import Path
 
 # Source: Your trained model
-source_model = Path(r"D:\Learn\Year4\KLTN\Dataset\traffic_yolo_v11m_mixclass\best (8).pt")
+source_model = Path(r"D:\Learn\Year4\KLTN\ByteTrack-YOLO\models\traffic_yolo_v11m\best.pt")
 
 # Destination: Project models directory
 project_root = Path(__file__).parent

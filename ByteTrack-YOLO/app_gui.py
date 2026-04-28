@@ -212,8 +212,14 @@ class ByteTrackGUI:
         self.traffic_lanes = {}  # {lane_id: TrafficLane}
         self.no_parking_zones = {}  # {zone_id: NoParkingZone}
         
-        # Queue for frame display
-        self.frame_queue = queue.Queue(maxsize=2)
+        # video_fps: FPS gốc của video (giới hạn dưới cho display)
+        # actual_fps: FPS hệ thống xử lý được realtime (giới hạn trên cho display)
+        # display_fps = min(video_fps, actual_fps)
+        self.video_fps = 30
+        self.actual_fps = 30
+
+        # Queue size=1: chỉ giữ frame mới nhất, không bao giờ block
+        self.frame_queue = queue.Queue(maxsize=1)
         
         # Create GUI
         self.create_widgets()
@@ -248,7 +254,7 @@ class ByteTrackGUI:
             row=3, column=0, sticky=tk.W, pady=2)
         
         self.model_path = r"D:\Learn\Year4\KLTN\Dataset\traffic_yolo_v11m_mixclass\best (8).pt"
-        model_label = ttk.Label(settings_frame, text="YOLO11s", 
+        model_label = ttk.Label(settings_frame, text="YOLO11m", 
                                foreground="blue", font=("Arial", 7))
         model_label.grid(row=4, column=0, sticky=tk.W, pady=(0, 5))
         
@@ -463,7 +469,6 @@ class ByteTrackGUI:
             self.violation_detector.no_parking_zones.clear()
             self.violation_detector.no_parking_state.clear()
             self.violation_detector.persistent_violations.clear()
-            self.violation_detector.previous_positions.clear()
             self.update_lane_info_display()
             print("  Violation polygons cleared for new video")
             
@@ -904,6 +909,8 @@ class ByteTrackGUI:
             height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
             
+            self.video_fps = fps if fps > 0 else 30
+            self.actual_fps = self.video_fps  # khởi tạo bằng video_fps trước khi có số thực
             print(f"Video info: {width}x{height} @ {fps} FPS, {total_frames} frames")
             
             writer = None
@@ -969,6 +976,11 @@ class ByteTrackGUI:
                 fps_val = 1.0 / elapsed if elapsed > 0 else 0
                 fps_list.append(fps_val)
                 
+                # Cập nhật actual_fps bằng moving average 10 frame
+                # để display interval không nhảy loạn theo từng frame
+                n = min(len(fps_list), 10)
+                self.actual_fps = sum(fps_list[-n:]) / n
+                
                 if frame_id % 30 == 0 or frame_id == 1:
                     print(f"{frame_id:<10} {len(detections):<12} {len(online_tracks):<10} {fps_val:<10.2f}")
                 
@@ -992,11 +1004,12 @@ class ByteTrackGUI:
                 self.status_label.config(
                     text=f"Processing: Frame {frame_id}/{total_frames} ({progress:.1f}%) - FPS: {fps_val:.1f}")
                 
-                if not self.frame_queue.full():
-                    try:
-                        self.frame_queue.put_nowait(frame_vis)
-                    except queue.Full:
-                        pass
+                # Xả frame cũ (nếu display chưa kịp lấy), đẩy frame mới nhất vào
+                try:
+                    self.frame_queue.get_nowait()
+                except queue.Empty:
+                    pass
+                self.frame_queue.put_nowait(frame_vis)
                 
                 if writer:
                     writer.write(frame_vis)
@@ -1129,7 +1142,12 @@ class ByteTrackGUI:
             except queue.Empty:
                 pass
         
-        self.root.after(30, self.update_display)
+        # display_fps = min(video_fps, actual_fps)
+        # - video_fps: không hiển thị nhanh hơn video gốc
+        # - actual_fps: không hiển thị nhanh hơn hệ thống xử lý được
+        display_fps = min(self.video_fps, self.actual_fps)
+        interval_ms = max(10, int(1000 / display_fps))
+        self.root.after(interval_ms, self.update_display)
 
 
 def main():
