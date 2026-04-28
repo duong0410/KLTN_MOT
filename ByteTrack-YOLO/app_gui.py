@@ -254,17 +254,21 @@ class ByteTrackGUI:
             row=3, column=0, sticky=tk.W, pady=2)
         
         self.model_path = r"D:\Learn\Year4\KLTN\Dataset\traffic_yolo_v11m_mixclass\best (8).pt"
-        model_label = ttk.Label(settings_frame, text="YOLO11m", 
+        self.model_label = ttk.Label(settings_frame, text=Path(self.model_path).name, 
                                foreground="blue", font=("Arial", 7))
-        model_label.grid(row=4, column=0, sticky=tk.W, pady=(0, 5))
+        self.model_label.grid(row=4, column=0, sticky=tk.W, pady=(0, 2))
+        
+        ttk.Button(settings_frame, text="Browse Model", 
+                   command=self.browse_model, width=15).grid(
+                   row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
         
         # Device Selection
         ttk.Label(settings_frame, text="Device:", font=("Arial", 8, "bold")).grid(
-            row=5, column=0, sticky=tk.W, pady=2)
+            row=6, column=0, sticky=tk.W, pady=2)
         
         self.device_var = tk.StringVar(value="cuda")
         device_frame = ttk.Frame(settings_frame)
-        device_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
+        device_frame.grid(row=7, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
         
         ttk.Radiobutton(device_frame, text="GPU", variable=self.device_var, 
                        value="cuda").pack(side=tk.LEFT, padx=(0, 10))
@@ -273,72 +277,72 @@ class ByteTrackGUI:
         
         # Separator
         ttk.Separator(settings_frame, orient=tk.HORIZONTAL).grid(
-            row=7, column=0, sticky=(tk.W, tk.E), pady=3)
+            row=8, column=0, sticky=(tk.W, tk.E), pady=3)
         
         # Detection Confidence
         ttk.Label(settings_frame, text="Detection:", font=("Arial", 8, "bold")).grid(
-            row=8, column=0, sticky=tk.W, pady=2)
+            row=9, column=0, sticky=tk.W, pady=2)
         self.det_conf_var = tk.DoubleVar(value=0.01)
         det_conf_scale = ttk.Scale(settings_frame, from_=0.0, to=1.0, 
                                    variable=self.det_conf_var, orient=tk.HORIZONTAL)
-        det_conf_scale.grid(row=9, column=0, sticky=(tk.W, tk.E), pady=(0, 1))
+        det_conf_scale.grid(row=10, column=0, sticky=(tk.W, tk.E), pady=(0, 1))
         self.det_conf_label = ttk.Label(settings_frame, text="0.01", font=("Arial", 7))
-        self.det_conf_label.grid(row=10, column=0, sticky=tk.W)
+        self.det_conf_label.grid(row=11, column=0, sticky=tk.W)
         det_conf_scale.config(command=lambda v: self.det_conf_label.config(
             text=f"{float(v):.2f}"))
         
         # Separator
         ttk.Separator(settings_frame, orient=tk.HORIZONTAL).grid(
-            row=11, column=0, sticky=(tk.W, tk.E), pady=3)
+            row=12, column=0, sticky=(tk.W, tk.E), pady=3)
         
         # Track Settings
         ttk.Label(settings_frame, text="Track Buf:", font=("Arial", 7)).grid(
-            row=12, column=0, sticky=tk.W, pady=2)
+            row=13, column=0, sticky=tk.W, pady=2)
         self.track_buffer_var = tk.IntVar(value=30)
         buffer_spinbox = ttk.Spinbox(settings_frame, from_=1, to=100, 
                                      textvariable=self.track_buffer_var, width=12)
-        buffer_spinbox.grid(row=13, column=0, sticky=(tk.W, tk.E), pady=1)
+        buffer_spinbox.grid(row=14, column=0, sticky=(tk.W, tk.E), pady=1)
         
         ttk.Label(settings_frame, text="Min Area:", font=("Arial", 7)).grid(
-            row=14, column=0, sticky=tk.W, pady=2)
+            row=15, column=0, sticky=tk.W, pady=2)
         self.min_box_area_var = tk.IntVar(value=400)
         area_spinbox = ttk.Spinbox(settings_frame, from_=100, to=5000, increment=100,
                                    textvariable=self.min_box_area_var, width=12)
-        area_spinbox.grid(row=15, column=0, sticky=(tk.W, tk.E), pady=1)
+        area_spinbox.grid(row=16, column=0, sticky=(tk.W, tk.E), pady=1)
         
         ttk.Label(settings_frame, text="Edge:", font=("Arial", 7)).grid(
-            row=16, column=0, sticky=tk.W, pady=2)
+            row=17, column=0, sticky=tk.W, pady=2)
         self.edge_margin_var = tk.IntVar(value=10)
         margin_spinbox = ttk.Spinbox(settings_frame, from_=0, to=100, increment=5,
                                      textvariable=self.edge_margin_var, width=12)
-        margin_spinbox.grid(row=17, column=0, sticky=(tk.W, tk.E), pady=1)
+        margin_spinbox.grid(row=18, column=0, sticky=(tk.W, tk.E), pady=1)
         
         # Output Settings
         self.save_output_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(settings_frame, text="Save output", 
                        variable=self.save_output_var,
-                       command=self.toggle_output).grid(row=18, column=0, 
+                       command=self.toggle_output).grid(row=19, column=0, 
                                                         sticky=tk.W, pady=5)
         
         # Separator
         ttk.Separator(settings_frame, orient=tk.HORIZONTAL).grid(
-            row=19, column=0, sticky=(tk.W, tk.E), pady=3)
+            row=20, column=0, sticky=(tk.W, tk.E), pady=3)
         
         # ===== VIOLATION DETECTION SECTION =====
         ttk.Label(settings_frame, text="Violation Detection", 
-                 font=("Arial", 9, "bold")).grid(row=20, column=0, sticky=tk.W, pady=(8, 3))
+                 font=("Arial", 9, "bold")).grid(row=22, column=0, sticky=tk.W, pady=(8, 3))
         
         self.enable_violation_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(settings_frame, text="✓ Enable violation check", 
                        variable=self.enable_violation_var).grid(
-                       row=21, column=0, sticky=tk.W, pady=(1, 5))
+                       row=23, column=0, sticky=tk.W, pady=(1, 5))
         
         # ===== TRAFFIC LANES SECTION =====
         ttk.Label(settings_frame, text="Traffic Lanes", 
-                 font=("Arial", 8, "bold")).grid(row=22, column=0, sticky=tk.W, pady=(3, 2))
+                 font=("Arial", 8, "bold")).grid(row=24, column=0, sticky=tk.W, pady=(3, 2))
         
         lane_btn_frame = ttk.Frame(settings_frame)
-        lane_btn_frame.grid(row=23, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
+        lane_btn_frame.grid(row=25, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
         
         ttk.Button(lane_btn_frame, text="New Lane", 
                   command=self.setup_traffic_lanes, width=12).pack(side=tk.LEFT, padx=(0, 2), fill=tk.X, expand=True)
@@ -352,7 +356,7 @@ class ByteTrackGUI:
                                         text="0 lanes", 
                                         foreground="orange", 
                                         font=("Arial", 6, "bold"))
-        self.lane_list_label.grid(row=24, column=0, sticky=tk.W, pady=(2, 0))
+        self.lane_list_label.grid(row=26, column=0, sticky=tk.W, pady=(2, 0))
         
         self.lane_detail_label = ttk.Label(settings_frame, 
                                           text="", 
@@ -360,21 +364,21 @@ class ByteTrackGUI:
                                           font=("Arial", 5), 
                                           wraplength=140, 
                                           justify=tk.LEFT)
-        self.lane_detail_label.grid(row=25, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
+        self.lane_detail_label.grid(row=27, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
         
         # ===== NO-PARKING ZONES SECTION =====
         ttk.Label(settings_frame, text="No-Parking Zones", 
-                 font=("Arial", 8, "bold")).grid(row=26, column=0, sticky=tk.W, pady=(4, 1))
+                 font=("Arial", 8, "bold")).grid(row=28, column=0, sticky=tk.W, pady=(4, 1))
         
         ttk.Label(settings_frame, text="Timeout (frames):", 
-                 font=("Arial", 7)).grid(row=27, column=0, sticky=tk.W, pady=(1, 1))
+                 font=("Arial", 7)).grid(row=29, column=0, sticky=tk.W, pady=(1, 1))
         self.no_park_frames_var = tk.IntVar(value=45)
         no_park_spinbox = ttk.Spinbox(settings_frame, from_=10, to=300,
                                       textvariable=self.no_park_frames_var, width=12)
-        no_park_spinbox.grid(row=28, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
+        no_park_spinbox.grid(row=30, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
 
         no_parking_btn_frame = ttk.Frame(settings_frame)
-        no_parking_btn_frame.grid(row=29, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
+        no_parking_btn_frame.grid(row=31, column=0, sticky=(tk.W, tk.E), pady=(0, 2))
         ttk.Button(no_parking_btn_frame, text="New Zone", 
               command=self.setup_no_parking_zone, width=13).pack(side=tk.LEFT, padx=(0, 2), fill=tk.X, expand=True)
         ttk.Button(no_parking_btn_frame, text="Clear All", 
@@ -385,7 +389,7 @@ class ByteTrackGUI:
                                         text="0 zones", 
                                         foreground="orange", 
                                         font=("Arial", 6, "bold"))
-        self.zone_list_label.grid(row=30, column=0, sticky=tk.W, pady=(2, 0))
+        self.zone_list_label.grid(row=32, column=0, sticky=tk.W, pady=(2, 0))
         
         self.zone_detail_label = ttk.Label(settings_frame, 
                                           text="", 
@@ -393,7 +397,7 @@ class ByteTrackGUI:
                                           font=("Arial", 5), 
                                           wraplength=140, 
                                           justify=tk.LEFT)
-        self.zone_detail_label.grid(row=31, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
+        self.zone_detail_label.grid(row=33, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
         
         # Combined info label (kept for backwards compatibility)
         self.lane_info_label = ttk.Label(settings_frame, 
@@ -401,15 +405,15 @@ class ByteTrackGUI:
                                         foreground="green", 
                                         font=("Arial", 6), 
                                         wraplength=140)
-        self.lane_info_label.grid(row=32, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
+        self.lane_info_label.grid(row=34, column=0, sticky=(tk.W, tk.E), pady=(0, 3))
         
         # Separator
         ttk.Separator(settings_frame, orient=tk.HORIZONTAL).grid(
-            row=33, column=0, sticky=(tk.W, tk.E), pady=2)
+            row=35, column=0, sticky=(tk.W, tk.E), pady=2)
         
         # Control Buttons
         button_frame = ttk.Frame(settings_frame)
-        button_frame.grid(row=34, column=0, sticky=(tk.W, tk.E), pady=(3, 0))
+        button_frame.grid(row=36, column=0, sticky=(tk.W, tk.E), pady=(3, 0))
         
         self.start_button = ttk.Button(button_frame, text="Start", 
                                        command=self.start_processing)
@@ -421,8 +425,8 @@ class ByteTrackGUI:
         self.stop_button.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(2, 0))
         
         # Add spacer
-        ttk.Label(settings_frame, text="").grid(row=35, column=0, sticky=(tk.W, tk.E), pady=5)
-        settings_frame.rowconfigure(35, weight=1)
+        ttk.Label(settings_frame, text="").grid(row=37, column=0, sticky=(tk.W, tk.E), pady=5)
+        settings_frame.rowconfigure(37, weight=1)
         
         # RIGHT PANEL: Video display
         right_frame = ttk.Frame(self.root, padding="5")
@@ -477,6 +481,20 @@ class ByteTrackGUI:
                 output_name = Path(filename).stem + "_tracked.mp4"
                 self.output_path = str(Path(filename).parent / output_name)
                 
+    def browse_model(self):
+        """Open file dialog to select a YOLO checkpoint"""
+        filename = filedialog.askopenfilename(
+            title="Select YOLO checkpoint",
+            filetypes=[
+                ("PyTorch checkpoint", "*.pt *.pth"),
+                ("All files", "*.*")
+            ]
+        )
+        if filename:
+            self.model_path = filename
+            self.model_label.config(text=Path(filename).name)
+            print(f"✓ Model checkpoint selected: {filename}")
+
     def toggle_output(self):
         """Toggle output video saving"""
         if self.save_output_var.get() and self.video_path:
@@ -881,7 +899,7 @@ class ByteTrackGUI:
         """Process video with ByteTrack (runs in separate thread)"""
         try:
             print("="*60)
-            print("Initializing YOLO11s Traffic detector...")
+            print("Initializing YOLO11 Traffic detector...")
             self.detector = YOLODetector(
                 model_path=self.model_path,
                 conf_threshold=self.det_conf_var.get(),
