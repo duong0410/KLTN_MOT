@@ -29,7 +29,6 @@ Dự án này triển khai hệ thống tracking đa đối tượng cho hai bà
 - ROI selection (chọn vùng quan tâm)
 - Real-time visualization
 - Track filtering và statistics
-- Export tracking results
 
 ###  Video Tracking
 
@@ -90,12 +89,6 @@ KLTN/
 │
 │
 ├── 📂 Dataset/                   # ⚠️ NOT INCLUDED IN GIT
-│   ├── MOT17/                    # MOT17 dataset
-│   ├── traffic_yolo/             # Traffic dataset v1
-│   ├── traffic_yolo_v2/          # Traffic dataset v2
-│   ├── traffic_yolo_v3/          # Traffic dataset v3
-│   ├── COCO2017/                 # COCO dataset
-│   └── UA-DETRAC/                # UA-DETRAC dataset
 │
 ├── 📄 .gitignore                 # Git ignore rules
 ├── 📄 README.md                  # This file
